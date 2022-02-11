@@ -398,5 +398,3 @@ export class GraphqlTypesFactory {
     return `Nullable<${str}>`;
   }
 }
-
-export default GraphqlTypesFactory;
