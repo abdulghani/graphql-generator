@@ -485,3 +485,5 @@ class GraphqlObjectFactory {
     return this.end(config);
   }
 }
+
+export default GraphqlObjectFactory;

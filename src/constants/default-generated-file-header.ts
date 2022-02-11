@@ -1,9 +1,12 @@
-import fs from "fs";
-import path from "path";
+const DEFAULT_GENERATED_FILE_HEADER = `
+/*
+ * -------------------------------------------------------
+ * THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+ * -------------------------------------------------------
+ */
 
-const DEFAULT_GENERATED_FILE_HEADER = fs.readFileSync(
-  path.resolve("./default-generated-file-header-text.ts"),
-  { encoding: "utf-8" }
-);
+/* tslint:disable */
+/* eslint-disable */
+`.trim();
 
 export default DEFAULT_GENERATED_FILE_HEADER;

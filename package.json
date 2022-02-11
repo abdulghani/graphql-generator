@@ -1,23 +1,29 @@
 {
-  "name": "graphql-generator",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "@adgstudio/graphql-generator",
+  "version": "0.0.1",
+  "description": "generate graphql object, type definition from graphql sdl",
+  "homepage": "https://github.com/abdulghani/graphql-generator",
+  "main": "dist/index.js",
   "scripts": {
     "lint": "echo \"Error: no lint specified\"",
     "lint:all": "npm run lint",
     "test": "echo \"Error: no test specified\"",
-    "test:ci": "npm run test -- --ci"
+    "test:ci": "npm run test -- --ci",
+    "build": "rm -rf ./dist; tsc --project ./tsconfig.build.json",
+    "prepack": "npm run build",
+    "release": "./node_modules/.bin/standard-version --releaseCommitMessageFormat \"chore: release v{{currentTag}}\" --release-as minor",
+    "release:bugfix": "./node_modules/.bin/standard-version --releaseCommitMessageFormat \"chore: release v{{currentTag}}\" --release-as patch"
   },
   "keywords": [],
-  "author": "",
+  "author": "contact.abdulghani@gmail.com",
   "license": "ISC",
   "devDependencies": {
     "@types/lodash": "^4.14.178",
     "@types/node": "^17.0.17",
     "@types/prettier": "^2.4.4",
     "eslint": "^8.8.0",
-    "npm": "^8.5.0"
+    "npm": "^8.5.0",
+    "standard-version": "^9.3.2"
   },
   "dependencies": {
     "@graphql-tools/merge": "^8.2.2",
