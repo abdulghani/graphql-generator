@@ -1,6 +1,9 @@
 name: DEV CHECKS
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - dev
