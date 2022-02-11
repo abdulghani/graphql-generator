@@ -87,7 +87,7 @@ jobs:
           ./node_modules/.bin/npm run build &&
           cd ./dist/ && ls -a
 
-  publish:
+  release:
     needs:
       - install_dependencies
       - lint
@@ -95,7 +95,7 @@ jobs:
       - build
     runs-on: ubuntu-latest
     environment:
-      name: PUBLISH
+      name: RELEASE
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v2
@@ -121,6 +121,44 @@ jobs:
           NPM_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
         run: |
           npm publish --access public
+      - name: push tags
+        run: |
+          git push --follow-tags origin ${{ GITHUB.GITHUB_REF_NAME }}
+
+  prerelease:
+    needs:
+      - install_dependencies
+      - lint
+      - tests
+      - build
+    runs-on: ubuntu-latest
+    environment:
+      name: PRERELEASE
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: 14.x
+      - name: restore node_modules cache
+        uses: actions/cache@v2
+        with:
+          key: ${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          path: |
+            ./node_modules
+      - name: configure git
+        run: |
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com" &&
+          git config --global user.name "GitHub Actions"
+      - name: create prerelease
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
+        run: |
+          npm run prerelease
+      - name: publish
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
+        run: |
+          npm publish --access public --tag rc
       - name: push tags
         run: |
           git push --follow-tags origin ${{ GITHUB.GITHUB_REF_NAME }}
