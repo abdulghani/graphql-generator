@@ -1,0 +1,69 @@
+name: DEV CHECKS
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - develop
+
+jobs:
+  install_dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: 14.x
+      - name: cache node_modules
+        uses: actions/cache@v2
+        with:
+          key: ${{ runner.os }}-${{ hashFiles('./package-lock.json') }}
+          path: |
+            ./node_modules
+      - name: install latest npm
+        run: |
+          ([ ! -d ./node_modules ] && npm install -g npm || echo "CACHE ALREADY EXISTS") &&
+          echo "CURRENT NPM VERSION ($(npm -v)) NODE ($(node -v))" &&
+          echo "PATHS NPM ($(which npm)) NODE ($(which node))"
+      - name: install dependencies
+        env:
+          TEST: "TEST ENV"
+        run: |
+          ([ ! -d ./node_modules ] && npm ci || echo "CACHE ALREADY EXISTS") &&
+          echo "ENV ($TEST)"
+
+  lint:
+    needs:
+      - install_dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: 14.x
+      - name: restore node_modules cache
+        uses: actions/cache@v2
+        with:
+          key: ${{ runner.os }}-${{ hashFiles('./package-lock.json') }}
+          path: |
+            node_modules
+      - name: lint (CHECK FOR WARNINGS ✋)
+        run: ./node_modules/.bin/npm run lint:all
+
+  tests:
+    needs:
+      - install_dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: 14.x
+      - name: restore node_modules cache
+        uses: actions/cache@v2
+        with:
+          key: ${{ runner.os }}-${{ hashFiles('./package-lock.json') }}
+          path: |
+            node_modules
+      - name: run tests
+        run: ./node_modules/.bin/npm run test:ci

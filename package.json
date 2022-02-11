@@ -1,0 +1,28 @@
+{
+  "name": "graphql-generator",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "lint": "echo \"Error: no lint specified\"",
+    "lint:all": "npm run lint",
+    "test": "echo \"Error: no test specified\"",
+    "test:ci": "npm run test -- --ci"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/lodash": "^4.14.178",
+    "@types/node": "^17.0.17",
+    "@types/prettier": "^2.4.4",
+    "eslint": "^8.8.0",
+    "npm": "^8.5.0"
+  },
+  "dependencies": {
+    "graphql": "^16.3.0",
+    "lodash": "^4.17.21",
+    "prettier": "^2.5.1",
+    "ts-morph": "^13.0.3"
+  }
+}
