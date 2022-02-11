@@ -20,7 +20,7 @@ jobs:
       - name: cache node_modules
         uses: actions/cache@v2
         with:
-          key: ${{ runner.os }}-${{ hashFiles('./package-lock.json') }}
+          key: ${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
           path: |
             ./node_modules
       - name: install latest npm
@@ -47,9 +47,9 @@ jobs:
       - name: restore node_modules cache
         uses: actions/cache@v2
         with:
-          key: ${{ runner.os }}-${{ hashFiles('./package-lock.json') }}
+          key: ${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
           path: |
-            node_modules
+            ./node_modules
       - name: lint (CHECK FOR WARNINGS ✋)
         run: ./node_modules/.bin/npm run lint:all
 
@@ -65,8 +65,8 @@ jobs:
       - name: restore node_modules cache
         uses: actions/cache@v2
         with:
-          key: ${{ runner.os }}-${{ hashFiles('./package-lock.json') }}
+          key: ${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
           path: |
-            node_modules
+            ./node_modules
       - name: run tests
         run: ./node_modules/.bin/npm run test:ci
