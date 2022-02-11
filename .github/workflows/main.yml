@@ -82,8 +82,10 @@ jobs:
           key: ${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
           path: |
             ./node_modules
-      - name: run tests
-        run: ./node_modules/.bin/npm run build
+      - name: build
+        run: |
+          ./node_modules/.bin/npm run build &&
+          cd ./dist/ && ls -a
 
   publish:
     needs:
@@ -96,8 +98,6 @@ jobs:
       name: PUBLISH
     steps:
       - uses: actions/checkout@v2
-        with:
-          token: ${{ SECRETS.CI_ACCESS_TOKEN }}
       - uses: actions/setup-node@v2
         with:
           node-version: 14.x
