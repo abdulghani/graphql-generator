@@ -1,11 +1,8 @@
-name: CI CHECKS
+name: MAIN
 
 on:
-  pull_request:
+  push:
     branches:
-      - dev
-      - develop
-      - release
       - main
 
 jobs:
@@ -69,3 +66,59 @@ jobs:
             ./node_modules
       - name: run tests
         run: ./node_modules/.bin/npm run test:ci
+
+  build:
+    needs:
+      - install_dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: 14.x
+      - name: restore node_modules cache
+        uses: actions/cache@v2
+        with:
+          key: ${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          path: |
+            ./node_modules
+      - name: run tests
+        run: ./node_modules/.bin/npm run build
+
+  publish:
+    needs:
+      - install_dependencies
+      - lint
+      - tests
+      - build
+    runs-on: ubuntu-latest
+    environment:
+      name: PUBLISH
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          token: ${{ SECRETS.CI_ACCESS_TOKEN }}
+      - uses: actions/setup-node@v2
+        with:
+          node-version: 14.x
+      - name: restore node_modules cache
+        uses: actions/cache@v2
+        with:
+          key: ${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          path: |
+            ./node_modules
+      - name: configure git
+        run: |
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com" &&
+          git config --global user.name "GitHub Actions"
+      - name: create release
+        run: |
+          npm run release
+      - name: publish
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
+        run: |
+          npm publish --access public
+      - name: push tags
+        run: |
+          git push --follow-tags origin ${{ GITHUB.GITHUB_REF_NAME }}
