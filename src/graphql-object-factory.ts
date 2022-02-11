@@ -38,7 +38,7 @@ const DEFAULT_OBJECT_DECLARATION_ORDER: Kind[] = [
   Kind.UNION_TYPE_DEFINITION,
 ];
 
-class GraphqlObjectFactory {
+export class GraphqlObjectFactory {
   private tsMorphLib!: typeof import("ts-morph");
   private tsProject!: Project;
   private tsFile!: SourceFile;
@@ -485,5 +485,3 @@ class GraphqlObjectFactory {
     return this.end(config);
   }
 }
-
-export default GraphqlObjectFactory;

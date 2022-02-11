@@ -14,7 +14,7 @@ interface SdlItem {
   path?: string;
 }
 
-class GraphqlSdlReader {
+export class GraphqlSdlReader {
   private getIgnoreList(config: Config): string[] {
     if (Array.isArray(config.ignorePaths)) {
       return config.ignorePaths;
@@ -54,5 +54,3 @@ class GraphqlSdlReader {
     ];
   }
 }
-
-export default GraphqlSdlReader;

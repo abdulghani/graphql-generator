@@ -31,7 +31,7 @@ interface Config {
   tsConfigPath?: string;
 }
 
-class GraphqlTypesFactory {
+export class GraphqlTypesFactory {
   private tsMorphLib!: typeof import("ts-morph");
   private tsProject!: Project;
   private tsFile!: SourceFile;
