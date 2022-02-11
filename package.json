@@ -12,7 +12,9 @@
     "build": "rm -rf ./dist; tsc --project ./tsconfig.build.json",
     "prepack": "npm run build",
     "release": "./node_modules/.bin/standard-version --releaseCommitMessageFormat \"chore: release v{{currentTag}}\" --release-as patch",
-    "prerelease": "./node_modules/.bin/standard-version --releaseCommitMessageFormat \"chore: release v{{currentTag}}\" --prerelease rc"
+    "prerelease": "./node_modules/.bin/standard-version --releaseCommitMessageFormat \"chore: release v{{currentTag}}\" --prerelease rc",
+    "prepare": "npm run git:setup",
+    "git:setup": "bash ./.scripts/git-setup.sh"
   },
   "keywords": [],
   "author": "contact.abdulghani@gmail.com",
