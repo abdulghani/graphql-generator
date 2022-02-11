@@ -1,4 +1,4 @@
-name: DEV CHECKS
+name: CI CHECKS
 
 on:
   push:
@@ -8,6 +8,8 @@ on:
     branches:
       - dev
       - develop
+      - release
+      - main
 
 jobs:
   install_dependencies:
