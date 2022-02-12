@@ -513,7 +513,7 @@ export class GraphqlObjectGenerator {
         files.map(async (item, i) => {
           console.log(`GENERATING OBJECT FROM (${entries[i]})`);
           const sdl = this.mergeSdl(item);
-          const outputPath = entries[i] + ".types.ts";
+          const outputPath = entries[i] + ".object.ts";
           const factory = new GraphqlObjectFactory();
           await factory.generate(sdl, { ...config, outputPath });
         })
