@@ -7,7 +7,7 @@ git fetch --all
 
 function merge_branch() {
     echo "MERGING ($1) BRANCH WITH ($MERGE_WITH)"
-    git merge -s ours $1
+    git merge -s ours "origin/$1"
     echo "BRANCH ($1) SUCCESSFULLY MERGED WITH ($MERGE_WITH)"
 }
 
