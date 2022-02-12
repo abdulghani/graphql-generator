@@ -6,10 +6,13 @@ LIST_BRANCHES=($(echo $BRANCHES | tr ',' ' '))
 git fetch --all
 git pull origin $MERGE_WITH
 
+# LIST BRANCHES
+git branch -l
+
 function merge_branch() {
     echo "MERGING ($1) BRANCH WITH ($MERGE_WITH)"
-    git checkout "origin/$1"
-    git pull "origin/$1"
+    git checkout $1
+    git pull origin $1
     git merge $MERGE_WITH --no-ff
     echo "BRANCH ($1) SUCCESSFULLY MERGED WITH ($MERGE_WITH)"
     git checkout $MERGE_WITH
