@@ -124,6 +124,13 @@ jobs:
       - name: push tags
         run: |
           git push --follow-tags origin ${{ GITHUB.GITHUB_REF_NAME }}
+      - name: merge with dev
+        env:
+          BRANCHES: ("dev")
+          MERGE_WITH: ${{ GITHUB.REF }}
+        run: |
+          bash ./.scripts/git-merge-branch.sh &&
+          git push --all origin
 
   prerelease:
     needs:
