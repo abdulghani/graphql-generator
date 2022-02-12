@@ -1,8 +1,5 @@
 #!/bin/bash
 
-CURRENT_BRANCH="$(git branch --show-current)"
-MY_ARRAY=("one" "two" "three")
-
 function merge_branch() {
     echo "MERGING ($1) BRANCH WITH ($MERGE_WITH)"
     git checkout $1
@@ -11,6 +8,6 @@ function merge_branch() {
     git checkout $MERGE_WITH
 }
 
-for branch in ${MY_ARRAY[@]}; do
+for branch in ${BRANCHES[@]}; do
     merge_branch $branch
 done

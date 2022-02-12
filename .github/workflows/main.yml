@@ -127,7 +127,7 @@ jobs:
       - name: merge with dev
         env:
           BRANCHES: ("dev")
-          MERGE_WITH: ${{ GITHUB.REF }}
+          MERGE_WITH: ${{ GITHUB.REF_NAME }}
         run: |
           bash ./.scripts/git-merge-branch.sh &&
           git push --all origin
