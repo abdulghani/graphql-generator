@@ -83,15 +83,19 @@ export class GraphqlObjectFactory {
     const definitions = lodash.cloneDeep(
       documentNode.definitions
     ) as DefinitionNode[];
+    const lastItem = ["mutation", "query"];
 
     const declarationOrder =
       config.objectDeclarationOrder ?? DEFAULT_OBJECT_DECLARATION_ORDER;
 
     const sorted = definitions.sort((a, b) => {
       const [nameA, nameB]: string[] = [
-        lodash.get(a, "name.value", ""),
-        lodash.get(b, "name.value", ""),
+        lodash.get(a, "name.value", "")?.toLowerCase?.(),
+        lodash.get(b, "name.value", "")?.toLowerCase?.(),
       ];
+
+      if (lastItem.includes(nameA) && !lastItem.includes(nameB)) return 1;
+      if (!lastItem.includes(nameA) && lastItem.includes(nameB)) return -1;
 
       const [kindA, kindB] = [
         declarationOrder.indexOf(a.kind),
