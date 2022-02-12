@@ -1,6 +1,6 @@
 {
   "name": "@adgstudio/graphql-generator",
-  "version": "0.1.5",
+  "version": "0.1.6-rc.0",
   "description": "generate graphql object, type definition from graphql sdl",
   "homepage": "https://github.com/abdulghani/graphql-generator",
   "main": "dist/index.js",
