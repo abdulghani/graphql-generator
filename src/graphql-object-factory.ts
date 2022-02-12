@@ -1,8 +1,11 @@
+import { mergeTypeDefs } from "@graphql-tools/merge";
+import { gql } from "apollo-server-core";
+import fastGlob from "fast-glob";
 import { readFileSync, writeFileSync } from "fs";
+import { readFile } from "fs/promises";
 import {
   ConstValueNode,
   DefinitionNode,
-  DocumentNode,
   EnumTypeDefinitionNode,
   FieldDefinitionNode,
   InputObjectTypeDefinitionNode,
@@ -33,8 +36,9 @@ declare interface Config {
 const DEFAULT_OBJECT_DECLARATION_ORDER: Kind[] = [
   Kind.SCALAR_TYPE_DEFINITION,
   Kind.ENUM_TYPE_DEFINITION,
-  Kind.INPUT_OBJECT_TYPE_DEFINITION,
+  Kind.INTERFACE_TYPE_DEFINITION,
   Kind.OBJECT_TYPE_DEFINITION,
+  Kind.INPUT_OBJECT_TYPE_DEFINITION,
   Kind.UNION_TYPE_DEFINITION,
 ];
 
@@ -74,24 +78,26 @@ export class GraphqlObjectFactory {
     this.config = config;
   }
 
-  private getSdlDefinitions(graphqlSdl: DocumentNode, config: Config) {
+  private getSdlDefinitions(graphqlSdl: string, config: Config) {
+    const documentNode = gql(graphqlSdl);
     const definitions = lodash.cloneDeep(
-      graphqlSdl.definitions
+      documentNode.definitions
     ) as DefinitionNode[];
 
     const declarationOrder =
       config.objectDeclarationOrder ?? DEFAULT_OBJECT_DECLARATION_ORDER;
 
     const sorted = definitions.sort((a, b) => {
+      const [nameA, nameB]: string[] = [
+        lodash.get(a, "name.value", ""),
+        lodash.get(b, "name.value", ""),
+      ];
+
       const [kindA, kindB] = [
         declarationOrder.indexOf(a.kind),
         declarationOrder.indexOf(b.kind),
       ];
       if (kindA != kindB) return kindA - kindB;
-      const [nameA, nameB]: string[] = [
-        lodash.get(a, "name.value", ""),
-        lodash.get(b, "name.value", ""),
-      ];
 
       return nameA.localeCompare(nameB);
     });
@@ -110,32 +116,22 @@ export class GraphqlObjectFactory {
 
   private handleDefinitionType(def: DefinitionNode) {
     switch (def.kind) {
-      case "SchemaDefinition":
+      case Kind.SCHEMA_DEFINITION:
         break;
-      case "ObjectTypeDefinition":
+      case Kind.OBJECT_TYPE_DEFINITION:
         return this.createGraphqlObject(def);
-      case "ObjectTypeExtension":
-        break;
-      case "InputObjectTypeDefinition":
+      case Kind.INPUT_OBJECT_TYPE_DEFINITION:
         return this.createGraphQLInput(def);
-      case "InputObjectTypeExtension":
-        break;
-      case "InterfaceTypeDefinition":
+      case Kind.INTERFACE_TYPE_DEFINITION:
         return this.createGraphQLInterface(def);
-      case "InterfaceTypeExtension":
-        break;
-      case "ScalarTypeDefinition":
+      case Kind.SCALAR_TYPE_DEFINITION:
         return this.createGraphqlScalar(def);
-      case "ScalarTypeExtension":
-        break;
-      case "EnumTypeDefinition":
+      case Kind.ENUM_TYPE_DEFINITION:
         return this.createGraphqlEnum(def);
-      case "EnumTypeExtension":
-        break;
-      case "UnionTypeDefinition":
+      case Kind.UNION_TYPE_DEFINITION:
         return this.createGraphqlUnion(def);
-      case "UnionTypeExtension":
-        break;
+      default:
+        return console.warn(`Definition kind is not handled (${def.kind})`);
     }
   }
 
@@ -474,7 +470,7 @@ export class GraphqlObjectFactory {
     return this.tsFile;
   }
 
-  public async generateGraphqlObject(graphqlSdl: DocumentNode, config: Config) {
+  public async generate(graphqlSdl: string, config: Config) {
     const file = await this.generateFile(config);
     const definitions = this.getSdlDefinitions(graphqlSdl, config);
 
@@ -483,5 +479,51 @@ export class GraphqlObjectFactory {
 
     // THIS HAS TO GO LAST
     return this.end(config);
+  }
+}
+
+interface GeneratorConfig extends Omit<Config, "outputPath"> {
+  ignorePaths?: string[];
+  outputPath?: string;
+}
+
+export class GraphqlObjectGenerator {
+  private mergeSdl(sdls: string | string[]) {
+    return mergeTypeDefs(sdls, {
+      throwOnConflict: true,
+      commentDescriptions: true,
+      sort: true,
+      consistentEnumMerge: true,
+      ignoreFieldConflicts: false,
+    });
+  }
+
+  public async generate(globPaths: string | string[], config: GeneratorConfig) {
+    const entries = await fastGlob(globPaths, { ignore: config.ignorePaths });
+    const files = await Promise.all(
+      entries.map((item) => readFile(item, { encoding: "utf-8" }))
+    );
+
+    if (!config.outputPath) {
+      return await Promise.all(
+        files.map(async (item, i) => {
+          console.log(`GENERATING OBJECT FROM (${entries[i]})`);
+          const sdl = this.mergeSdl(item);
+          const outputPath = entries[i] + ".types.ts";
+          const factory = new GraphqlObjectFactory();
+          await factory.generate(sdl, { ...config, outputPath });
+        })
+      );
+    }
+
+    return await (async () => {
+      console.log("MERGING TYPES FROM", entries);
+      const sdl = this.mergeSdl(files);
+      const factory = new GraphqlObjectFactory();
+      await factory.generate(sdl, {
+        ...config,
+        outputPath: config.outputPath!,
+      });
+    })();
   }
 }
