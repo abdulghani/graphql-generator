@@ -502,7 +502,11 @@ export class GraphqlObjectGenerator {
     });
   }
 
-  public async generate(globPaths: string | string[], config: GeneratorConfig) {
+  public async generate(
+    globPaths: string | string[],
+    config?: GeneratorConfig
+  ) {
+    config = config ?? {};
     const entries = await fastGlob(globPaths, { ignore: config.ignorePaths });
     const files = await Promise.all(
       entries.map((item) => readFile(item, { encoding: "utf-8" }))
@@ -516,6 +520,7 @@ export class GraphqlObjectGenerator {
           const outputPath = entries[i] + ".object.ts";
           const factory = new GraphqlObjectFactory();
           await factory.generate(sdl, { ...config, outputPath });
+          console.log(`CREATED GRAPHQL OBJECT FILE (${outputPath})`);
         })
       );
     }
@@ -528,6 +533,7 @@ export class GraphqlObjectGenerator {
         ...config,
         outputPath: config.outputPath!,
       });
+      console.log(`CREATED GRAPHQL OBJECT FILE (${config.outputPath})`);
     })();
   }
 }

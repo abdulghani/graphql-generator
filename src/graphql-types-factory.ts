@@ -410,7 +410,11 @@ export class GraphqlTypesGenerator {
     });
   }
 
-  public async generate(globPaths: string | string[], config: GeneratorConfig) {
+  public async generate(
+    globPaths: string | string[],
+    config?: GeneratorConfig
+  ) {
+    config = config ?? {};
     const entries = await fastGlob(globPaths, { ignore: config.ignorePaths });
     const files = await Promise.all(
       entries.map((item) => readFile(item, { encoding: "utf-8" }))
@@ -424,6 +428,7 @@ export class GraphqlTypesGenerator {
           const outputPath = entries[i] + ".types.ts";
           const factory = new GraphqlTypesFactory();
           await factory.generate(sdl, { ...config, outputPath });
+          console.log(`CREATED GRAPHQL TYPES FILE (${outputPath})`);
         })
       );
     }
@@ -436,6 +441,7 @@ export class GraphqlTypesGenerator {
         ...config,
         outputPath: config.outputPath!,
       });
+      console.log(`CREATED GRAPHQL TYPES FILE (${config.outputPath})`);
     })();
   }
 }

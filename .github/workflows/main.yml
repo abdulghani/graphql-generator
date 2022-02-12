@@ -158,7 +158,7 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
         run: |
-          npm publish --access public --tag rc
+          npm publish --access public --tag next
       - name: push tags
         run: |
           git push --follow-tags origin ${{ GITHUB.GITHUB_REF_NAME }}
