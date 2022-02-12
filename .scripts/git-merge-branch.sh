@@ -1,5 +1,7 @@
 #!/bin/bash
 
+LIST_BRANCHES=($(echo $BRANCHES | tr ',' ' '))
+
 function merge_branch() {
     echo "MERGING ($1) BRANCH WITH ($MERGE_WITH)"
     git checkout $1
@@ -8,6 +10,6 @@ function merge_branch() {
     git checkout $MERGE_WITH
 }
 
-for branch in ${BRANCHES[@]}; do
+for branch in ${LIST_BRANCHES[@]}; do
     merge_branch $branch
 done
