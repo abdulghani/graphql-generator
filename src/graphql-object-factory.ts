@@ -455,7 +455,7 @@ export class GraphqlObjectFactory {
       config?.fileHeader ?? DEFAULT_GENERATED_FILE_HEADER,
       IMPORT_GRAPHQL_HEADER,
     ];
-    file.insertText(0, headers.join("\n"));
+    file.insertText(0, headers.join("\n\n"));
   }
 
   private async formatFile(config: Config) {
