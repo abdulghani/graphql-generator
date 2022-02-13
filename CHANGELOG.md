@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### 0.1.15-rc.0 (2022-02-13)
+
+
+### Features
+
+* add graphql context type path ([60e6b33](https://github.com/abdulghani/graphql-generator/commit/60e6b33b447705ad14b69db660b15acb20bc00ae))
+
 ### [0.1.14](https://github.com/abdulghani/graphql-generator/compare/v0.1.14-rc.0...v0.1.14) (2022-02-12)
 
 ### 0.1.14-rc.0 (2022-02-12)
