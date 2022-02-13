@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### 0.1.16-rc.0 (2022-02-13)
+
+
+### Features
+
+* add  to generate types to use graphql resolver argument objects using custom field resolver ([6df0cb1](https://github.com/abdulghani/graphql-generator/commit/6df0cb1e12b4b0b3e8d1b6626c77c2def248e66c))
+
 ### [0.1.15](https://github.com/abdulghani/graphql-generator/compare/v0.1.15-rc.4...v0.1.15) (2022-02-13)
 
 ### [0.1.15-rc.4](https://github.com/abdulghani/graphql-generator/compare/v0.1.13...v0.1.15-rc.4) (2022-02-13)
