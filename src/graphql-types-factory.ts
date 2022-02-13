@@ -26,11 +26,14 @@ import {
   Project,
   SourceFile,
 } from "ts-morph";
+import DEFAULT_GRAPHQL_CONTEXT_NAME from "./constants/default-graphql-context-name";
 import IMPORT_GRAPHQL_HEADER from "./constants/import-graphql-header";
 
 interface Config {
   outputPath: string;
   tsConfigPath?: string;
+  contextTypePath?: string;
+  contextTypeName?: string;
 }
 
 export class GraphqlTypesFactory {
@@ -40,13 +43,35 @@ export class GraphqlTypesFactory {
   private config!: Config;
   private typeList!: string[];
 
-  private addNullable() {
+  private getContextTypeName() {
+    return this.config.contextTypeName ?? DEFAULT_GRAPHQL_CONTEXT_NAME;
+  }
+
+  private addNullableType() {
     this.tsFile.addTypeAlias({
       name: "Nullable",
       typeParameters: ["T"],
       isExported: true,
       type: `T | null | undefined`,
     });
+  }
+
+  private addContextType() {
+    if (this.config.contextTypePath) {
+      const targetPath = path.resolve(this.config.contextTypePath);
+      const relativePath = path.relative(this.config.outputPath, targetPath);
+      const importTemplate = `import ${this.getContextTypeName()} from "${relativePath}";`;
+
+      this.tsFile.insertText(0, importTemplate);
+      return;
+    }
+
+    this.tsFile.addTypeAlias({
+      name: this.getContextTypeName(),
+      isExported: true,
+      type: "any",
+    });
+    return;
   }
 
   private addHeader() {
@@ -80,7 +105,8 @@ export class GraphqlTypesFactory {
       overwrite: true,
     });
     this.addHeader();
-    this.addNullable();
+    this.addNullableType();
+    this.addContextType();
 
     return this.tsFile;
   }
@@ -251,7 +277,11 @@ export class GraphqlTypesFactory {
       // RESOLVER ARG, CONTEXT, INFO
       const resolverArgs: OptionalKind<ParameterDeclarationStructure>[] = [
         { name: "args", type: argIntr.getName(), hasQuestionToken: false },
-        { name: "context", type: "any", hasQuestionToken: false },
+        {
+          name: "context",
+          type: this.getContextTypeName(),
+          hasQuestionToken: false,
+        },
         {
           name: "info",
           type: "graphql.GraphQLResolveInfo",
