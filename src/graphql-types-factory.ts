@@ -26,6 +26,7 @@ import {
   Project,
   SourceFile,
 } from "ts-morph";
+import DEFAULT_GENERATED_FILE_HEADER from "./constants/default-generated-file-header";
 import DEFAULT_GRAPHQL_CONTEXT_NAME from "./constants/default-graphql-context-name";
 import IMPORT_GRAPHQL_HEADER from "./constants/import-graphql-header";
 
@@ -34,6 +35,7 @@ interface Config {
   tsConfigPath?: string;
   contextTypePath?: string;
   contextTypeName?: string;
+  fileHeader?: string;
 }
 
 export class GraphqlTypesFactory {
@@ -58,8 +60,22 @@ export class GraphqlTypesFactory {
 
   private addContextType() {
     if (this.config.contextTypePath) {
-      const targetPath = path.resolve(this.config.contextTypePath);
-      const relativePath = path.relative(this.config.outputPath, targetPath);
+      const targetPath = (() => {
+        const _targetPath = path.resolve(this.config.contextTypePath);
+        if (_targetPath.match(/\.ts$/i))
+          return _targetPath.replace(/\.ts$/i, "");
+        return _targetPath;
+      })();
+      const outputPath = path
+        .resolve(this.config.outputPath)
+        .split("/")
+        .slice(0, -1)
+        .join("/");
+      const relativePath = (() => {
+        const _relativePath = path.relative(outputPath, targetPath);
+        if (_relativePath.startsWith(".")) return _relativePath;
+        return "./" + _relativePath;
+      })();
       const importTemplate = `import ${this.getContextTypeName()} from "${relativePath}";`;
 
       this.tsFile.insertText(0, importTemplate);
@@ -75,7 +91,8 @@ export class GraphqlTypesFactory {
   }
 
   private addHeader() {
-    this.tsFile.insertText(0, [IMPORT_GRAPHQL_HEADER].join("\n"));
+    const header = this.config.fileHeader ?? DEFAULT_GENERATED_FILE_HEADER;
+    this.tsFile.insertText(0, [header, IMPORT_GRAPHQL_HEADER].join("\n"));
   }
 
   private assignConfig(config: Config) {
@@ -104,9 +121,9 @@ export class GraphqlTypesFactory {
     this.tsFile = this.tsProject.createSourceFile(config.outputPath, "", {
       overwrite: true,
     });
-    this.addHeader();
     this.addNullableType();
     this.addContextType();
+    this.addHeader();
 
     return this.tsFile;
   }
