@@ -51,6 +51,7 @@ export class GraphqlTypesFactory {
 
   private addNullableType() {
     this.tsFile.addTypeAlias({
+      leadingTrivia: (w) => w.writeLine("\n"),
       name: "Nullable",
       typeParameters: ["T"],
       isExported: true,
@@ -92,7 +93,7 @@ export class GraphqlTypesFactory {
 
   private addHeader() {
     const header = this.config.fileHeader ?? DEFAULT_GENERATED_FILE_HEADER;
-    this.tsFile.insertText(0, [header, IMPORT_GRAPHQL_HEADER].join("\n"));
+    this.tsFile.insertText(0, [header, IMPORT_GRAPHQL_HEADER].join("\n\n"));
   }
 
   private assignConfig(config: Config) {
