@@ -3,10 +3,12 @@ import FastGlob from "fast-glob";
 import { readFile, writeFile } from "fs/promises";
 import path from "path";
 import prettier from "prettier";
+import DEFAULT_GRAPHQL_SDL_FILE_HEADER from "./constants/default-graphql-sdl-file-header";
 
 interface Config {
   outputPath: string;
   ignorePaths?: string[];
+  fileHeader?: string;
 }
 
 export class GraphqlSdlFactory {
@@ -25,7 +27,12 @@ export class GraphqlSdlFactory {
       ignoreFieldConflicts: false,
     });
 
-    const formatted = prettier.format(merged, { parser: "graphql" });
+    const formatted = prettier.format(
+      [config.fileHeader ?? DEFAULT_GRAPHQL_SDL_FILE_HEADER, merged].join(
+        "\n\n"
+      ),
+      { parser: "graphql" }
+    );
     await writeFile(path.resolve(config.outputPath), formatted, {
       encoding: "utf-8",
     });

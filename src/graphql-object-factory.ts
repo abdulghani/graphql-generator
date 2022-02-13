@@ -78,42 +78,69 @@ export class GraphqlObjectFactory {
     this.config = config;
   }
 
-  private getSdlDefinitions(graphqlSdl: string, config: Config) {
-    const documentNode = gql(graphqlSdl);
-    const definitions = lodash.cloneDeep(
-      documentNode.definitions
-    ) as DefinitionNode[];
-    const lastItem = ["mutation", "query"];
+  private getNamedNodeStr(item: TypeNode): string {
+    if (item.kind === Kind.NAMED_TYPE) {
+      return item.name.value;
+    }
+    return this.getNamedNodeStr(item.type);
+  }
 
-    const declarationOrder =
-      config.objectDeclarationOrder ?? DEFAULT_OBJECT_DECLARATION_ORDER;
+  private getDefinitionNodeDeps(node: DefinitionNode): string[] {
+    const deps: string[] = [];
+    const fields: FieldDefinitionNode[] = lodash.get(node, "fields", []);
+    const interfaces: NamedTypeNode[] = lodash.get(node, "interfaces", []);
 
-    const sorted = definitions.sort((a, b) => {
-      const [nameA, nameB]: string[] = [
-        lodash.get(a, "name.value", "")?.toLowerCase?.(),
-        lodash.get(b, "name.value", "")?.toLowerCase?.(),
-      ];
-
-      if (lastItem.includes(nameA) && !lastItem.includes(nameB)) return 1;
-      if (!lastItem.includes(nameA) && lastItem.includes(nameB)) return -1;
-
-      const [kindA, kindB] = [
-        declarationOrder.indexOf(a.kind),
-        declarationOrder.indexOf(b.kind),
-      ];
-      if (kindA != kindB) return kindA - kindB;
-
-      return nameA.localeCompare(nameB);
+    fields.forEach((item) => {
+      deps.push(this.getNamedNodeStr(item.type));
+      item.arguments?.forEach((aItem) => {
+        deps.push(this.getNamedNodeStr(aItem.type));
+      });
+    });
+    interfaces.forEach((item) => {
+      deps.push(this.getNamedNodeStr(item));
     });
 
-    return sorted;
+    return deps;
+  }
+
+  private getSdlDefinitions(
+    graphqlSdl: string,
+    config: Config
+  ): DefinitionNode[] {
+    const documentNode = gql(graphqlSdl);
+    const definitions = lodash
+      .cloneDeep(documentNode.definitions)
+      .map((item) => {
+        const name = lodash.get(item, "name.value", "");
+        if (name) this.objectList.push(name);
+
+        return {
+          name,
+          definition: item,
+          deps: this.getDefinitionNodeDeps(item),
+        };
+      });
+
+    const sorted = definitions.sort((a, b) => {
+      const [depsA, depsB]: Array<string[]> = [a.deps, b.deps];
+      const [nameA, nameB]: string[] = [a.name, b.name];
+
+      if (depsA.includes(nameB) && depsB.includes(nameA))
+        throw new Error(
+          `Circular dependency between (${nameA}) and (${nameB})`
+        );
+      if (!depsA.includes(nameB) && !depsB.includes(nameA)) return -1;
+      if (depsB.includes(nameA)) return -1;
+      if (depsA.includes(nameB)) return 1;
+
+      return 0;
+    });
+
+    return sorted.map((item) => item.definition);
   }
 
   private traverseDefinitions(definitions: DefinitionNode[]) {
     definitions.forEach((item) => {
-      const objectName = lodash.get(item, "name.value", undefined);
-      if (objectName) this.objectList.push(objectName);
-
       this.handleDefinitionType(item);
     });
   }
@@ -455,7 +482,7 @@ export class GraphqlObjectFactory {
       config?.fileHeader ?? DEFAULT_GENERATED_FILE_HEADER,
       IMPORT_GRAPHQL_HEADER,
     ];
-    file.insertText(0, headers.join("\n"));
+    file.insertText(0, headers.join("\n\n"));
   }
 
   private async formatFile(config: Config) {
@@ -526,7 +553,7 @@ export class GraphqlObjectGenerator {
     }
 
     return await (async () => {
-      console.log("MERGING TYPES FROM", entries);
+      console.log("\n", "MERGING TYPES FROM", entries);
       const sdl = this.mergeSdl(files);
       const factory = new GraphqlObjectFactory();
       await factory.generate(sdl, {

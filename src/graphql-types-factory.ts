@@ -26,11 +26,17 @@ import {
   Project,
   SourceFile,
 } from "ts-morph";
+import DEFAULT_GENERATED_FILE_HEADER from "./constants/default-generated-file-header";
+import DEFAULT_GRAPHQL_CONTEXT_NAME from "./constants/default-graphql-context-name";
 import IMPORT_GRAPHQL_HEADER from "./constants/import-graphql-header";
 
 interface Config {
   outputPath: string;
   tsConfigPath?: string;
+  contextTypePath?: string;
+  contextTypeName?: string;
+  fileHeader?: string;
+  useObjectArgs?: boolean;
 }
 
 export class GraphqlTypesFactory {
@@ -40,8 +46,13 @@ export class GraphqlTypesFactory {
   private config!: Config;
   private typeList!: string[];
 
-  private addNullable() {
+  private getContextTypeName() {
+    return this.config.contextTypeName ?? DEFAULT_GRAPHQL_CONTEXT_NAME;
+  }
+
+  private addNullableType() {
     this.tsFile.addTypeAlias({
+      leadingTrivia: (w) => w.writeLine("\n"),
       name: "Nullable",
       typeParameters: ["T"],
       isExported: true,
@@ -49,8 +60,130 @@ export class GraphqlTypesFactory {
     });
   }
 
+  private addPromisable() {
+    this.tsFile.addTypeAlias({
+      leadingTrivia: (w) => w.writeLine("\n"),
+      name: "Promisable",
+      typeParameters: ["T"],
+      isExported: true,
+      type: `T | Promise<T>`,
+    });
+  }
+
+  private addResolverArgsType() {
+    this.tsFile.addTypeAlias({
+      leadingTrivia: (w) => w.writeLine("\n"),
+      name: "GraphqlResolverArgs",
+      typeParameters: [
+        {
+          name: "TSource",
+          default: "any",
+        },
+        { name: "TArgs", default: "any" },
+      ],
+      isExported: true,
+      type: `{
+        source: TSource,
+        args: TArgs,
+        context: ${this.getContextTypeName()},
+        info: graphql.GraphQLResolveInfo
+      }`.trim(),
+    });
+  }
+
+  private addFieldResolverType() {
+    this.tsFile.addTypeAlias({
+      leadingTrivia: (w) => w.writeLine("\n"),
+      name: "GraphqlFieldResolver",
+      typeParameters: (() => {
+        if (this.config.useObjectArgs) {
+          return ["TSource", "TArgs", "TResult"];
+        }
+        return ["TArgs", "TResult"];
+      })(),
+      isExported: true,
+      type: (() => {
+        if (this.config.useObjectArgs) {
+          return `(args: GraphqlResolverArgs<TSource, TArgs>) => Promisable<TResult>`.trim();
+        }
+        return `(
+            args: TArgs,
+            context: ${this.getContextTypeName()},
+            info: graphql.GraphQLResolveInfo
+          ) => Promisable<TResult>
+          `.trim();
+      })(),
+    });
+  }
+
+  private addResolvableType() {
+    this.tsFile.addTypeAlias({
+      leadingTrivia: (w) => w.writeLine("\n"),
+      name: "Resolvable",
+      typeParameters: (() => {
+        if (this.config.useObjectArgs) {
+          return [
+            "TSource",
+            "TResult",
+            {
+              name: "TArgs",
+              default: "{}",
+            },
+          ];
+        }
+        return [
+          "TResult",
+          {
+            name: "TArgs",
+            default: "{}",
+          },
+        ];
+      })(),
+      isExported: true,
+      type: (() => {
+        if (this.config.useObjectArgs) {
+          return `TResult | GraphqlFieldResolver<TSource, TArgs, TResult>`;
+        }
+        return `TResult | GraphqlFieldResolver<TArgs, TResult>`;
+      })(),
+    });
+  }
+
+  private addContextType() {
+    if (this.config.contextTypePath) {
+      const targetPath = (() => {
+        const _targetPath = path.resolve(this.config.contextTypePath);
+        if (_targetPath.match(/\.ts$/i))
+          return _targetPath.replace(/\.ts$/i, "");
+        return _targetPath;
+      })();
+      const outputPath = path
+        .resolve(this.config.outputPath)
+        .split("/")
+        .slice(0, -1)
+        .join("/");
+      const relativePath = (() => {
+        const _relativePath = path.relative(outputPath, targetPath);
+        if (_relativePath.startsWith(".")) return _relativePath;
+        return "./" + _relativePath;
+      })();
+      const importTemplate = `import ${this.getContextTypeName()} from "${relativePath}";`;
+
+      this.tsFile.insertText(0, importTemplate);
+      return;
+    }
+
+    this.tsFile.addTypeAlias({
+      name: this.getContextTypeName(),
+      isExported: true,
+      type: "any",
+    });
+    return;
+  }
+
   private addHeader() {
-    this.tsFile.insertText(0, [IMPORT_GRAPHQL_HEADER].join("\n"));
+    const header = this.config.fileHeader ?? DEFAULT_GENERATED_FILE_HEADER;
+    this.tsFile.insertText(0, [header, IMPORT_GRAPHQL_HEADER].join("\n\n"));
   }
 
   private assignConfig(config: Config) {
@@ -79,8 +212,17 @@ export class GraphqlTypesFactory {
     this.tsFile = this.tsProject.createSourceFile(config.outputPath, "", {
       overwrite: true,
     });
+    this.addNullableType();
+    this.addPromisable();
+    this.addContextType();
     this.addHeader();
-    this.addNullable();
+
+    if (config.useObjectArgs) {
+      this.addResolverArgsType();
+    }
+
+    this.addFieldResolverType();
+    this.addResolvableType();
 
     return this.tsFile;
   }
@@ -105,12 +247,62 @@ export class GraphqlTypesFactory {
     return this.tsFile;
   }
 
-  private getSdlDefinitions(graphqlSdl: string) {
+  private getNamedNodeStr(item: TypeNode): string {
+    if (item.kind === Kind.NAMED_TYPE) {
+      return item.name.value;
+    }
+    return this.getNamedNodeStr(item.type);
+  }
+
+  private getDefinitionNodeDeps(node: DefinitionNode): string[] {
+    const deps: string[] = [];
+    const fields: FieldDefinitionNode[] = lodash.get(node, "fields", []);
+    const interfaces: NamedTypeNode[] = lodash.get(node, "interfaces", []);
+
+    fields.forEach((item) => {
+      deps.push(this.getNamedNodeStr(item.type));
+      item.arguments?.forEach((aItem) => {
+        deps.push(this.getNamedNodeStr(aItem.type));
+      });
+    });
+    interfaces.forEach((item) => {
+      deps.push(this.getNamedNodeStr(item));
+    });
+
+    return deps;
+  }
+
+  private getSdlDefinitions(graphqlSdl: string): DefinitionNode[] {
     const documentNodes = gql(graphqlSdl);
-    const definitions = lodash.cloneDeep(
-      documentNodes.definitions
-    ) as DefinitionNode[];
-    return lodash.sortBy(definitions, ["kind", "name.value"]);
+    const definitions = lodash
+      .cloneDeep(documentNodes.definitions)
+      .map((item) => {
+        const name = lodash.get(item, "name.value", "");
+        if (name) this.typeList.push(name);
+
+        return {
+          name,
+          definition: item,
+          deps: this.getDefinitionNodeDeps(item),
+        };
+      });
+
+    const sorted = definitions.sort((a, b) => {
+      const [depsA, depsB]: Array<string[]> = [a.deps, b.deps];
+      const [nameA, nameB]: string[] = [a.name, b.name];
+
+      if (depsA.includes(nameB) && depsB.includes(nameA))
+        throw new Error(
+          `Circular dependency between (${nameA}) and (${nameB})`
+        );
+      if (!depsA.includes(nameB) && !depsB.includes(nameA)) return -1;
+      if (depsB.includes(nameA)) return -1;
+      if (depsA.includes(nameB)) return 1;
+
+      return 0;
+    });
+
+    return sorted.map((item) => item.definition);
   }
 
   private addResolverType() {
@@ -131,7 +323,6 @@ export class GraphqlTypesFactory {
 
   private traverseDefinitions(defs: DefinitionNode[]) {
     defs.forEach((item) => {
-      this.typeList.push(lodash.get(item, "name.value", ""));
       this.handleDefinitionKind(item);
     });
   }
@@ -249,21 +440,43 @@ export class GraphqlTypesFactory {
       const argIntr = this.addMethodArg(sorted, node);
 
       // RESOLVER ARG, CONTEXT, INFO
-      const resolverArgs: OptionalKind<ParameterDeclarationStructure>[] = [
-        { name: "args", type: argIntr.getName(), hasQuestionToken: false },
-        { name: "context", type: "any", hasQuestionToken: false },
-        {
-          name: "info",
-          type: "graphql.GraphQLResolveInfo",
-          hasQuestionToken: false,
-        },
-      ];
+      const resolverArgs: OptionalKind<ParameterDeclarationStructure>[] =
+        (() => {
+          if (this.config.useObjectArgs) {
+            return [
+              {
+                name: `{
+                source,
+                args,
+                context,
+                info
+              }`.trim(),
+                type: `GraphqlResolverArgs<this, ${argIntr.getName()}>`,
+                hasQuestionToken: false,
+                isRestParameter: false,
+              },
+            ];
+          }
+          return [
+            { name: "args", type: argIntr.getName(), hasQuestionToken: false },
+            {
+              name: "context",
+              type: this.getContextTypeName(),
+              hasQuestionToken: false,
+            },
+            {
+              name: "info",
+              type: "graphql.GraphQLResolveInfo",
+              hasQuestionToken: false,
+            },
+          ];
+        })();
 
       return parent.addMethod({
         name: node.name.value,
         parameters: resolverArgs,
         hasQuestionToken: false,
-        returnType: this.handleInputValueNode(node.type, { promise: true }),
+        returnType: this.handleInputValueNode(node.type, { isResolver: true }),
       });
 
       // HANDLE QUERY/MUTATION METHODS ALL RESOLVER
@@ -272,13 +485,13 @@ export class GraphqlTypesFactory {
         name: node.name.value,
         hasQuestionToken: false,
         parameters: [],
-        returnType: this.handleInputValueNode(node.type, { promise: true }),
+        returnType: this.handleInputValueNode(node.type, { isResolver: true }),
       });
     }
     return parent.addProperty({
       name: node.name.value,
-      type: this.handleInputValueNode(node.type),
-      hasQuestionToken: false,
+      type: this.handleInputValueNode(node.type, { isProperty: true }),
+      hasQuestionToken: node.type.kind !== Kind.NON_NULL_TYPE,
     });
   }
 
@@ -324,27 +537,32 @@ export class GraphqlTypesFactory {
 
   private handleInputValueNode(
     node: TypeNode,
-    options?: { promise?: boolean; ignoreNullable?: boolean }
+    options?: {
+      isResolver?: boolean;
+      ignoreNullable?: boolean;
+      isProperty?: boolean;
+    }
   ): string {
-    const { promise, ignoreNullable } = options ?? {};
+    const { isResolver, ignoreNullable, isProperty } = options ?? {};
     let str: string;
 
     switch (node.kind) {
       case Kind.NON_NULL_TYPE:
         str = `${this.handleInputValueNode(node.type, {
           ignoreNullable: true,
+          isProperty,
         })}`;
         break;
       case Kind.LIST_TYPE:
         str = `Array<${this.handleInputValueNode(node.type)}>`;
         break;
       case Kind.NAMED_TYPE:
-        str = this.handleNamedTypeNode(node, { ignoreNullable });
+        str = this.handleNamedTypeNode(node, { ignoreNullable, isProperty });
         break;
     }
 
-    if (promise) {
-      return `${str} | Promise<${str}>`;
+    if (isResolver) {
+      return `Promisable<${str}>`;
     }
 
     return str;
@@ -352,10 +570,12 @@ export class GraphqlTypesFactory {
 
   private handleNamedTypeNode(
     node: NamedTypeNode,
-    options?: { ignoreNullable?: boolean }
+    options?: { ignoreNullable?: boolean; isProperty?: boolean }
   ) {
-    const { ignoreNullable } = options ?? {};
+    const { ignoreNullable, isProperty } = options ?? {};
     let str: string;
+    let isScalar: boolean = false;
+
     switch (node.name.value) {
       case "String":
         str = `string`;
@@ -369,15 +589,28 @@ export class GraphqlTypesFactory {
         break;
       default:
         // SCALAR, ENUM GOES HERE
-        // if (!this.typeList.includes(node.name.value)) {
-        //   throw new Error(`INVALID TYPE DEFINITION (${node.name.value})`);
-        // }
+        if (!this.typeList.includes(node.name.value)) {
+          throw new Error(`INVALID TYPE DEFINITION (${node.name.value})`);
+        }
+        isScalar = true;
         str = `${node.name.value}`;
         break;
     }
 
+    if (ignoreNullable && isProperty && isScalar && this.config.useObjectArgs) {
+      return `Resolvable<this, ${str}>`;
+    }
+    if (ignoreNullable && isProperty && isScalar) {
+      return `Resolvable<${str}>`;
+    }
     if (ignoreNullable) {
       return str;
+    }
+    if (isProperty && isScalar && this.config.useObjectArgs) {
+      return `Resolvable<this, Nullable<${str}>>`;
+    }
+    if (isProperty && isScalar) {
+      return `Resolvable<Nullable<${str}>>`;
     }
 
     return `Nullable<${str}>`;
