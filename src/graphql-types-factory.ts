@@ -38,7 +38,6 @@ interface Config {
   contextTypePath?: string;
   contextTypeName?: string;
   fileHeader?: string;
-  useObjectArgs?: boolean;
 }
 
 export class GraphqlTypesFactory {
@@ -73,6 +72,9 @@ export class GraphqlTypesFactory {
     });
   }
 
+  /** UNUSED FOR PUTTING ARGS AS OBJECT
+   * WOULD REQUIRE CUSTOM FIELD RESOLVER FUNCTION TO MAP
+   */
   private addResolverArgsType() {
     this.tsFile.addTypeAlias({
       leadingTrivia: (w) => w.writeLine("\n"),
@@ -196,10 +198,6 @@ export class GraphqlTypesFactory {
     this.addPromisable();
     this.addContextType();
     this.addHeader();
-
-    if (config.useObjectArgs) {
-      this.addResolverArgsType();
-    }
 
     this.addFieldResolverType();
     this.addResolvableType();
