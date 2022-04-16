@@ -557,7 +557,7 @@ export class GraphqlObjectGenerator {
     }
 
     return await (async () => {
-      console.log("\n", "MERGING TYPES FROM", entries);
+      console.log("MERGING TYPES FROM", entries);
       const sdl = this.mergeSdl(files);
       const factory = new GraphqlObjectFactory();
       await factory.generate(sdl, {
