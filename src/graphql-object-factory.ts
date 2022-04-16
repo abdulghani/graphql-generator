@@ -33,14 +33,11 @@ declare interface Config {
   fileHeader?: string;
 }
 
-const DEFAULT_OBJECT_DECLARATION_ORDER: Kind[] = [
-  Kind.SCALAR_TYPE_DEFINITION,
-  Kind.ENUM_TYPE_DEFINITION,
-  Kind.INTERFACE_TYPE_DEFINITION,
-  Kind.OBJECT_TYPE_DEFINITION,
-  Kind.INPUT_OBJECT_TYPE_DEFINITION,
-  Kind.UNION_TYPE_DEFINITION,
-];
+interface SDLSortDef {
+  name: any;
+  definition: DefinitionNode;
+  deps: string[];
+}
 
 export class GraphqlObjectFactory {
   private tsMorphLib!: typeof import("ts-morph");
@@ -86,9 +83,12 @@ export class GraphqlObjectFactory {
   }
 
   private getDefinitionNodeDeps(node: DefinitionNode): string[] {
-    const deps: string[] = [];
+    const deps: Array<string> = [];
     const fields: FieldDefinitionNode[] = lodash.get(node, "fields", []);
     const interfaces: NamedTypeNode[] = lodash.get(node, "interfaces", []);
+
+    /** IGNORE SCALAR TYPES FROM GETTING SORTED */
+    const ignoredType = ["String", "Int", "Float", "Boolean", "ID"];
 
     fields.forEach((item) => {
       deps.push(this.getNamedNodeStr(item.type));
@@ -100,7 +100,24 @@ export class GraphqlObjectFactory {
       deps.push(this.getNamedNodeStr(item));
     });
 
-    return deps;
+    return deps.filter((i) => !ignoredType.includes(i));
+  }
+
+  private sortSdlDefinition(a: SDLSortDef, b: SDLSortDef) {
+    const [depsA, depsB]: Array<string[]> = [a.deps, b.deps];
+    const [nameA, nameB]: string[] = [a.name, b.name];
+
+    /** BLOCK CIRCLULAR DEPENDENCY BETWEEN TYPES */
+    if (depsA.includes(nameB) && depsB.includes(nameA)) {
+      throw new Error(`Circular dependency between (${nameA}) and (${nameB})`);
+    }
+
+    /** BASED OF IF TYPES INCLUDED IN DEPS */
+    if (depsB.includes(nameA)) return -1;
+    if (depsA.includes(nameB)) return 1;
+
+    /** RETURN BASED ON NUMBER OF DEPS. SAFE BET LOWER DEPS COUNT TO BE ON TOP */
+    return depsA.length - depsB.length;
   }
 
   private getSdlDefinitions(
@@ -121,20 +138,7 @@ export class GraphqlObjectFactory {
         };
       });
 
-    const sorted = definitions.sort((a, b) => {
-      const [depsA, depsB]: Array<string[]> = [a.deps, b.deps];
-      const [nameA, nameB]: string[] = [a.name, b.name];
-
-      if (depsA.includes(nameB) && depsB.includes(nameA))
-        throw new Error(
-          `Circular dependency between (${nameA}) and (${nameB})`
-        );
-      if (!depsA.includes(nameB) && !depsB.includes(nameA)) return -1;
-      if (depsB.includes(nameA)) return -1;
-      if (depsA.includes(nameB)) return 1;
-
-      return 0;
-    });
+    const sorted = definitions.sort(this.sortSdlDefinition);
 
     return sorted.map((item) => item.definition);
   }
