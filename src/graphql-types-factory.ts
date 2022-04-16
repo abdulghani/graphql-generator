@@ -30,6 +30,7 @@ import {
 import DEFAULT_GENERATED_FILE_HEADER from "./constants/default-generated-file-header";
 import DEFAULT_GRAPHQL_CONTEXT_NAME from "./constants/default-graphql-context-name";
 import IMPORT_GRAPHQL_HEADER from "./constants/import-graphql-header";
+import { toEntityResolverName } from "./utils/to-entity-resolver-name";
 
 interface Config {
   outputPath: string;
@@ -97,24 +98,14 @@ export class GraphqlTypesFactory {
     this.tsFile.addTypeAlias({
       leadingTrivia: (w) => w.writeLine("\n"),
       name: "GraphqlFieldResolver",
-      typeParameters: (() => {
-        if (this.config.useObjectArgs) {
-          return ["TSource", "TArgs", "TResult"];
-        }
-        return ["TArgs", "TResult"];
-      })(),
+      typeParameters: ["TSource", "TArgs", "TResult"],
       isExported: true,
-      type: (() => {
-        if (this.config.useObjectArgs) {
-          return `(args: GraphqlResolverArgs<TSource, TArgs>) => Promisable<TResult>`.trim();
-        }
-        return `(
-            args: TArgs,
-            context: ${this.getContextTypeName()},
-            info: graphql.GraphQLResolveInfo
-          ) => Promisable<TResult>
-          `.trim();
-      })(),
+      type: `(
+          source: TSource,
+          args: TArgs,
+          context: ${this.getContextTypeName()},
+          info: graphql.GraphQLResolveInfo
+        ) => Promisable<TResult>`.trim(),
     });
   }
 
@@ -122,32 +113,9 @@ export class GraphqlTypesFactory {
     this.tsFile.addTypeAlias({
       leadingTrivia: (w) => w.writeLine("\n"),
       name: "Resolvable",
-      typeParameters: (() => {
-        if (this.config.useObjectArgs) {
-          return [
-            "TSource",
-            "TResult",
-            {
-              name: "TArgs",
-              default: "{}",
-            },
-          ];
-        }
-        return [
-          "TResult",
-          {
-            name: "TArgs",
-            default: "{}",
-          },
-        ];
-      })(),
+      typeParameters: ["TSource", "TResult"],
       isExported: true,
-      type: (() => {
-        if (this.config.useObjectArgs) {
-          return `TResult | GraphqlFieldResolver<TSource, TArgs, TResult>`;
-        }
-        return `TResult | GraphqlFieldResolver<TArgs, TResult>`;
-      })(),
+      type: `TResult | GraphqlFieldResolver<TSource, unknown, TResult>`,
     });
   }
 
@@ -417,7 +385,7 @@ export class GraphqlTypesFactory {
 
     this.objectList.forEach((key) => {
       intr.addMethod({
-        name: `resolve${key}`,
+        name: toEntityResolverName(key),
         hasQuestionToken: true,
         parameters: params,
         returnType: `Promise<${key} | undefined>`,
@@ -629,20 +597,14 @@ export class GraphqlTypesFactory {
         break;
     }
 
-    if (ignoreNullable && isProperty && isScalar && this.config.useObjectArgs) {
-      return `Resolvable<this, ${str}>`;
-    }
     if (ignoreNullable && isProperty && isScalar) {
-      return `Resolvable<${str}>`;
+      return `Resolvable<this, ${str}>`;
     }
     if (ignoreNullable) {
       return str;
     }
-    if (isProperty && isScalar && this.config.useObjectArgs) {
-      return `Resolvable<this, Nullable<${str}>>`;
-    }
     if (isProperty && isScalar) {
-      return `Resolvable<Nullable<${str}>>`;
+      return `Resolvable<this, Nullable<${str}>>`;
     }
 
     return `Nullable<${str}>`;
