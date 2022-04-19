@@ -28,8 +28,10 @@ import {
   SourceFile,
   StructureKind,
 } from "ts-morph";
+import { CONTEXT_ACCESSOR_HEADER } from "./constants/context-accessor-header";
 import DEFAULT_GENERATED_FILE_HEADER from "./constants/default-generated-file-header";
 import DEFAULT_GRAPHQL_CONTEXT_NAME from "./constants/default-graphql-context-name";
+import { FIELD_RESOLVER_HEADER } from "./constants/field-resolver-header";
 import IMPORT_GRAPHQL_HEADER from "./constants/import-graphql-header";
 import { toEntityResolverName } from "./utils/to-entity-resolver-name";
 
@@ -39,6 +41,7 @@ interface Config {
   contextTypePath?: string;
   contextTypeName?: string;
   fileHeader?: string;
+  useCustomFieldResolver?: boolean;
 }
 
 export class GraphqlTypesFactory {
@@ -98,17 +101,33 @@ export class GraphqlTypesFactory {
   }
 
   private addFieldResolverType() {
-    this.tsFile.addTypeAlias({
-      leadingTrivia: (w) => w.writeLine("\n"),
-      name: "GraphqlFieldResolver",
-      typeParameters: ["TSource", "TArgs", "TResult"],
-      isExported: true,
-      type: `(
+    if (this.config.useCustomFieldResolver) {
+      this.tsFile.addTypeAlias({
+        leadingTrivia: (w) => w.writeLine(FIELD_RESOLVER_HEADER),
+        name: "GraphqlFieldResolver",
+        typeParameters: ["TSource", "TArgs", "TResult"],
+        isExported: true,
+        type: `(
           source: TSource,
           args: TArgs,
           context: ${this.getContextTypeName()},
           info: graphql.GraphQLResolveInfo
         ) => Promisable<TResult>`.trim(),
+      });
+
+      return;
+    }
+
+    this.tsFile.addTypeAlias({
+      name: "GraphqlFieldResolver",
+      typeParameters: ["TSource", "TArgs", "TResult"],
+      leadingTrivia: (w) => w.writeLine("\n"),
+      isExported: true,
+      type: `(
+        args: TArgs,
+        context: ${this.getContextTypeName()},
+        info: graphql.GraphQLResolveInfo
+      ) => Promisable<TResult>`.trim(),
     });
   }
 
@@ -148,18 +167,30 @@ export class GraphqlTypesFactory {
       this.tsFile.insertText(0, importTemplate);
     }
 
-    const contextIntr = this.tsFile.addClass({
+    if (this.config.useCustomFieldResolver) {
+      const contextIntr = this.tsFile.addClass({
+        name: this.getContextTypeName(),
+        isExported: true,
+        isAbstract: true,
+        extends: intrExtends.join(", "),
+      });
+
+      contextIntr.addGetAccessor({
+        name: "entityResolvers",
+        isAbstract: true,
+        returnType: "EntityResolver",
+        scope: Scope.Public,
+        leadingTrivia: (w) => w.writeLine(CONTEXT_ACCESSOR_HEADER),
+      });
+
+      return;
+    }
+
+    const contextIntr = this.tsFile.addTypeAlias({
       name: this.getContextTypeName(),
       isExported: true,
-      isAbstract: true,
-      extends: intrExtends.join(", "),
-    });
-
-    contextIntr.addGetAccessor({
-      name: "entityResolvers",
-      isAbstract: true,
-      returnType: "EntityResolver",
-      scope: Scope.Public,
+      type: intrExtends.join(" & "),
+      leadingTrivia: (w) => w.writeLine("\n"),
     });
 
     return;
@@ -361,36 +392,41 @@ export class GraphqlTypesFactory {
   }
 
   private addEntityResolverType() {
-    const intr = this.tsFile.addInterface({
-      name: "EntityResolver",
-      isExported: true,
-      kind: StructureKind.Interface,
-    });
-
-    const params: OptionalKind<ParameterDeclarationStructure>[] = [];
-    params.push(
-      { name: "source", type: "unknown", hasQuestionToken: false },
-      { name: "args", type: "unknown", hasQuestionToken: false },
-      {
-        name: "context",
-        type: this.getContextTypeName(),
-        hasQuestionToken: false,
-      },
-      {
-        name: "info",
-        type: "graphql.GraphQLResolveInfo",
-        hasQuestionToken: false,
-      }
-    );
-
-    this.objectList.forEach((key) => {
-      intr.addMethod({
-        name: toEntityResolverName(key),
-        hasQuestionToken: true,
-        parameters: params,
-        returnType: `Promise<${key} | undefined>`,
+    if (this.config.useCustomFieldResolver) {
+      const intr = this.tsFile.addInterface({
+        name: "EntityResolver",
+        isExported: true,
+        kind: StructureKind.Interface,
       });
-    });
+      const ignoredKey = ["query", "mutation"];
+
+      const params: OptionalKind<ParameterDeclarationStructure>[] = [];
+      params.push(
+        { name: "source", type: "unknown", hasQuestionToken: false },
+        { name: "args", type: "unknown", hasQuestionToken: false },
+        {
+          name: "context",
+          type: this.getContextTypeName(),
+          hasQuestionToken: false,
+        },
+        {
+          name: "info",
+          type: "graphql.GraphQLResolveInfo",
+          hasQuestionToken: false,
+        }
+      );
+
+      this.objectList
+        .filter((key) => !ignoredKey.includes(key?.toLowerCase?.()))
+        .forEach((key) => {
+          intr.addMethod({
+            name: toEntityResolverName(key),
+            hasQuestionToken: true,
+            parameters: params,
+            returnType: `Promise<${key} | undefined>`,
+          });
+        });
+    }
   }
 
   private createObjectInterface(node: ObjectTypeDefinitionNode) {
@@ -457,7 +493,6 @@ export class GraphqlTypesFactory {
       const resolverArgs: OptionalKind<ParameterDeclarationStructure>[] =
         (() => {
           return [
-            { name: "source", type: "unknown", hasQuestionToken: false },
             { name: "args", type: argIntr.getName(), hasQuestionToken: false },
             {
               name: "context",
@@ -472,6 +507,13 @@ export class GraphqlTypesFactory {
           ];
         })();
 
+      if (this.config.useCustomFieldResolver) {
+        resolverArgs.unshift({
+          name: "source",
+          type: "unknown",
+          hasQuestionToken: false,
+        });
+      }
       return parent.addMethod({
         name: node.name.value,
         parameters: resolverArgs,
