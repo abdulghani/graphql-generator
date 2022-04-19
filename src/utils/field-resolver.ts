@@ -1,5 +1,5 @@
 import * as graphql from "graphql";
-import { isObjectLike, upperFirst } from "lodash";
+import { isObjectLike } from "lodash";
 import { toEntityResolverName } from "./to-entity-resolver-name";
 
 export const FieldResolver: graphql.GraphQLFieldResolver<unknown, unknown> =

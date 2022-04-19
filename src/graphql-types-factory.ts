@@ -24,6 +24,7 @@ import {
   OptionalKind,
   ParameterDeclarationStructure,
   Project,
+  Scope,
   SourceFile,
   StructureKind,
 } from "ts-morph";
@@ -147,17 +148,19 @@ export class GraphqlTypesFactory {
       this.tsFile.insertText(0, importTemplate);
     }
 
-    const contextIntr = this.tsFile.addInterface({
+    const contextIntr = this.tsFile.addClass({
       name: this.getContextTypeName(),
       isExported: true,
-      extends: intrExtends,
-      kind: StructureKind.Interface,
+      isAbstract: true,
+      extends: intrExtends.join(", "),
     });
 
     contextIntr.addProperty({
       name: "entityResolvers",
       type: "EntityResolver",
       hasQuestionToken: false,
+      hasExclamationToken: true,
+      scope: Scope.Public,
     });
 
     return;
