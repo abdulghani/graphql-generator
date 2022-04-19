@@ -155,11 +155,10 @@ export class GraphqlTypesFactory {
       extends: intrExtends.join(", "),
     });
 
-    contextIntr.addProperty({
+    contextIntr.addGetAccessor({
       name: "entityResolvers",
-      type: "EntityResolver",
-      hasQuestionToken: false,
-      hasExclamationToken: true,
+      isAbstract: true,
+      returnType: "EntityResolver",
       scope: Scope.Public,
     });
 
